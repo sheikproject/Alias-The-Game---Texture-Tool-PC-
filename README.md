@@ -21,7 +21,12 @@ A python tool to extract or modified the textures inside the .wld files in the P
 
 4. Right Click in any texture in the list to open a sub-menu, here you can change the texture, cancel the changes if you made an error or extract the selected texture.
 5. If you want to change the texture you have to make sure it is the <strong>same size</strong> with <strong>No Mipmaps</strong> and with the <strong>same compression</strong> as the original one.
-6. Select <strong>Save File</strong> to save your moddified .wld file.
+6. Select <strong>Save File</strong> to save your modified .wld file.
 
 # Results
 <img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/3f2770db-bcd3-4980-aeab-a98956b3485e" />
+
+
+
+
+Made with the help of Google Gemini.
