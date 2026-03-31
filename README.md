@@ -4,6 +4,8 @@
 
 A python tool to extract or modified the textures inside the .wld files in the PC version of Alias.
 
+Made with the help of Google Gemini.
+
 # Supported Versions
 - PC
 - XBOX
@@ -27,6 +29,3 @@ A python tool to extract or modified the textures inside the .wld files in the P
 <img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/3f2770db-bcd3-4980-aeab-a98956b3485e" />
 
 
-
-
-Made with the help of Google Gemini.
