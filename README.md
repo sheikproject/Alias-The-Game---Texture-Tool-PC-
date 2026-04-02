@@ -2,7 +2,7 @@
 
 <img width="750" height="702" alt="image" src="https://github.com/user-attachments/assets/04a302eb-c5f3-41c3-a377-a4983f1a2cf6" />
 
-A python tool to extract or modified the textures inside the .wld files in the PC version of Alias.
+A python tool to extract or modified the textures in the PC version of Alias.
 
 Made with the help of Google Gemini.
 
