@@ -101,17 +101,103 @@ class AliasTextureTool:
             self.menu.post(event.x_root, event.y_root)
 
     def load_wld_btn(self):
-        path = filedialog.askopenfilename(filetypes=[("WLD Files", "*.wld")])
+        # Update filetypes to allow selecting the _p payload files
+        path = filedialog.askopenfilename(filetypes=[("Alias Files", "*.wld *_p.cat"), ("WLD Files", "*.wld"), ("CAT Files", "*_p.cat")])
         if path: self.perform_load(path)
 
     def perform_load(self, path):
         self.wld_path = path
         self.path_entry.delete(0, tk.END)
         self.path_entry.insert(0, path)
-        with open(path, "rb") as f:
+        
+        # Identify the pair
+        path_lower = path.lower()
+        if path_lower.endswith('_p.cat'):
+            p_path = path
+            s_path = path.replace('_p.cat', '_s.cat')
+        elif path_lower.endswith('_s.cat'):
+            s_path = path
+            p_path = path.replace('_s.cat', '_p.cat')
+        else:
+            # Handle standard .wld files
+            with open(path, "rb") as f:
+                raw = f.read()
+                self.wld_bytes, self.original_wld_bytes = bytearray(raw), bytearray(raw)
+            self.parse_wld()
+            return
+
+        # Check if the partner file exists
+        if not os.path.exists(s_path) or not os.path.exists(p_path):
+            messagebox.showerror("Error", "Missing file pair!\nBoth _p.cat and _s.cat must be in this folder.")
+            return
+
+        # Load both files
+        with open(p_path, "rb") as f:
             raw = f.read()
             self.wld_bytes, self.original_wld_bytes = bytearray(raw), bytearray(raw)
-        self.parse_wld()
+        
+        with open(s_path, "rb") as f:
+            self.s_bytes = f.read()
+            
+        self.parse_cat_files()
+
+    def parse_cat_files(self):
+        self.listbox.delete(0, tk.END)
+        self.textures = []
+        
+        # 1. Pull texture names from the _s.cat file
+        # Finds all strings ending in .tex, .TEX, etc.
+        name_pattern = re.compile(b'([a-zA-Z0-9_-]+\\.[tT][eE][xX])')
+        names = [n.decode('ascii') for n in name_pattern.findall(self.s_bytes)]
+        
+        # 2. Find all 'DDS ' headers in the _p.cat file
+        # These are standard DDS files, so we use standard DDS offsets
+        dds_markers = [m.start() for m in re.finditer(b'DDS ', self.wld_bytes)]
+        
+        print(f"Found {len(names)} names and {len(dds_markers)} textures.")
+
+        for i, m_off in enumerate(dds_markers):
+            try:
+                # --- STANDARD DDS HEADER OFFSETS ---
+                # Height is at offset 12, Width is at offset 16
+                h = int.from_bytes(self.wld_bytes[m_off+12:m_off+16], 'little')
+                w = int.from_bytes(self.wld_bytes[m_off+16:m_off+20], 'little')
+                
+                # Mipmap count is at offset 28
+                mips = int.from_bytes(self.wld_bytes[m_off+28:m_off+32], 'little')
+                
+                # Format (FourCC) is at offset 84 (e.g., 'DXT1', 'DXT3', 'DXT5')
+                fmt_bytes = self.wld_bytes[m_off+84:m_off+88]
+                fmt = fmt_bytes.decode('ascii', 'ignore').strip('\x00')
+                
+                # If FourCC is empty, it's usually an uncompressed format (RGBA)
+                if not fmt:
+                    fmt = "RGBA"
+
+                # Calculate size: distance to the next 'DDS ' marker or end of file
+                if i + 1 < len(dds_markers):
+                    size = dds_markers[i+1] - m_off
+                else:
+                    size = len(self.wld_bytes) - m_off
+
+                # Link to the name found in the _s.cat file
+                tex_name = names[i] if i < len(names) else f"unnamed_{i:02d}.tex"
+                
+                self.textures.append({
+                    "offset": m_off,
+                    "size": size,
+                    "name": tex_name,
+                    "res": f"{w}x{h}",
+                    "fmt": fmt,
+                    "mips": mips,
+                    "alpha": "Yes" if "1" not in fmt else "No",
+                    "modified": False
+                })
+                
+                self.listbox.insert(tk.END, f"{i:02d} | {tex_name} | {fmt} | {w}x{h}")
+                
+            except Exception as e:
+                print(f"Skipping index {i} due to error: {e}")
 
     def parse_wld(self):
         self.listbox.delete(0, tk.END)
@@ -134,25 +220,84 @@ class AliasTextureTool:
         sel = self.listbox.curselection()
         if not sel: return
         t = self.textures[sel[0]]
+        
+        # Update information labels
         self.info_label.config(text=f"FILE: {t['name']} | FORMAT: {t['fmt']}\nRES: {t['res']} | HAS ALPHA: {t['alpha']} | MIPS: {t['mips']}\nOFFSET: {hex(t['offset'])}")
+        
+        # Get raw DDS bytes from memory
+        dds_data = self.wld_bytes[t['offset'] : t['offset'] + t['size']]
+        
         try:
-            img = Image.open(io.BytesIO(self.wld_bytes[t['offset'] : t['offset'] + t['size']]))
-            img.thumbnail((400, 400)); self.preview_img = ImageTk.PhotoImage(img)
+            # 1. Standard loading (Works for DXT1, DXT5, etc.)
+            img = Image.open(io.BytesIO(dds_data))
+            img.thumbnail((400, 400))
+            self.preview_img = ImageTk.PhotoImage(img)
             self.img_label.config(image=self.preview_img, text="")
-        except: self.img_label.config(image="", text="Preview Not Available")
+            
+        except Exception:
+            # 2. RGBA/BGRA Fallback (For uncompressed textures)
+            if t['fmt'] == "RGBA":
+                try:
+                    res = t['res'].split('x')
+                    w, h = int(res[0]), int(res[1])
+                    
+                    # Standard DDS header is 128 bytes; raw pixels start after it.
+                    pixel_data = dds_data[128 : 128 + (w * h * 4)]
+                    
+                    # Create image using BGRA decoder (Matches Alias PC's uncompressed format)
+                    img = Image.frombytes("RGBA", (w, h), pixel_data, "raw", "BGRA")
+                    
+                    img.thumbnail((400, 400))
+                    self.preview_img = ImageTk.PhotoImage(img)
+                    self.img_label.config(image=self.preview_img, text="")
+                except Exception:
+                    self.img_label.config(image="", text="Preview Not Available")
+            else:
+                self.img_label.config(image="", text="Format not previewable")
 
     def swap_selected(self):
-        idx = self.listbox.curselection()[0]; t = self.textures[idx]
+        idx_list = self.listbox.curselection()
+        if not idx_list: return
+        idx = idx_list[0]
+        t = self.textures[idx]
+        
         path = filedialog.askopenfilename(filetypes=[("DDS Files", "*.dds")])
         if path:
-            with open(path, "rb") as f: d = f.read()
-            if len(d) != t['size']:
-                messagebox.showerror("Size Mismatch", f"Required: {t['size']} bytes\nSelected: {len(d)} bytes")
+            with open(path, "rb") as f:
+                new_data = f.read()
+            
+            new_size = len(new_data)
+            
+            if new_size > t['size']:
+                messagebox.showerror("Size Error", f"The new file is too large!\nMaximum allowed: {t['size']} bytes\nSelected: {new_size} bytes")
                 return
-            self.wld_bytes[t['offset']:t['offset']+t['size']] = d
+            
+            # --- UPDATE HEADER INFO (Mips & Alpha) ---
+            # Get Mipmap count from the new file (Offset 28)
+            new_mips = int.from_bytes(new_data[28:32], 'little')
+            
+            # Get FourCC from the new file (Offset 84) to determine Alpha
+            new_fcc = new_data[84:88].decode('ascii', 'ignore').strip('\x00') or "RGBA"
+            new_alpha = "Yes" if "1" not in new_fcc else "No"
+
+            # If the new file is smaller, pad it with null bytes to match the original slot size
+            if new_size < t['size']:
+                padding_needed = t['size'] - new_size
+                new_data = new_data + (b'\x00' * padding_needed)
+
+            # Apply the data to the memory buffer
+            self.wld_bytes[t['offset'] : t['offset'] + t['size']] = new_data
+            
+            # Update the local texture list data so the UI reflects the change
             t['modified'] = True
-            self.listbox.delete(idx); self.listbox.insert(idx, f"{idx:02d} | [MODIFIED] {t['name']} | {t['fmt']} | {t['res']}")
-            self.listbox.selection_set(idx); self.on_select_change(None)
+            t['mips'] = new_mips
+            t['fmt'] = new_fcc
+            t['alpha'] = new_alpha
+            
+            self.listbox.delete(idx)
+            self.listbox.insert(idx, f"{idx:02d} | [MODIFIED] {t['name']} | {t['fmt']} | {t['res']}")
+            self.listbox.selection_set(idx)
+            self.on_select_change(None)
 
     def cancel_swap(self):
         idx = self.listbox.curselection()[0]; t = self.textures[idx]
