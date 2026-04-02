@@ -6,6 +6,10 @@ A python tool to extract or modified the textures inside the .wld files in the P
 
 Made with the help of Google Gemini.
 
+# Supported Files (At the moment)
+- .wld
+- _p.cat (the _s.cat store the name and information for each texture)
+
 # Supported Versions
 - PC
 - XBOX
@@ -23,7 +27,7 @@ Made with the help of Google Gemini.
 
 3. Right Click in any texture in the list to open a sub-menu, here you can change the texture, cancel the changes if you made an error or extract the selected texture.
    
-4. If you want to change the texture you have to make sure it is the <strong>same resolution</strong> with <strong>No Mipmaps</strong> and with the <strong>same compression</strong> as the original one.
+4. If you want to change the texture you have to make sure it is with the same compression as the target texture (DXT, Mipmaps, Resolution) or use a texture with a smaller file size. 
    
 5. Select <strong>Save File</strong> to save your modified .wld file.
 
