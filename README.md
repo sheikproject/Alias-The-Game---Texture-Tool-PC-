@@ -18,7 +18,7 @@ Made with the help of Google Gemini.
 # Instructions
 <img width="628" height="38" alt="image" src="https://github.com/user-attachments/assets/5030d9c6-7f8f-433a-add6-939bcaa50fce" />
 
-1. Select "Browse" to select your .wld file.
+1. Select "Browse" to select your file.
 
 <img width="600" height="572" alt="image" src="https://github.com/user-attachments/assets/b2375f91-b625-4124-9cb4-c9bd42d7ecb2" />
    
@@ -30,7 +30,7 @@ Made with the help of Google Gemini.
    
 4. If you want to change the texture you have to make sure it is with the same compression as the target texture (DXT, Mipmaps, Resolution) or use a texture with a smaller file size. 
    
-5. Select <strong>Save File</strong> to save your modified .wld file.
+5. Select <strong>Save File</strong> to save your modified file.
 
 # Results
 <img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/3f2770db-bcd3-4980-aeab-a98956b3485e" />
