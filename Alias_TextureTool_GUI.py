@@ -102,7 +102,7 @@ class AliasTextureTool:
 
     def load_wld_btn(self):
         # Update filetypes to allow selecting the _p payload files
-        path = filedialog.askopenfilename(filetypes=[("Alias Files", "*.wld *_p.cat"), ("WLD Files", "*.wld"), ("CAT Files", "*_p.cat")])
+        path = filedialog.askopenfilename(filetypes=[("Alias Files", "*.wld *_p.cat *.all"), ("WLD Files", "*.wld"), ("CAT Files", "*_p.cat"), ("ALL Files", "*.all")])
         if path: self.perform_load(path)
 
     def perform_load(self, path):
@@ -110,36 +110,78 @@ class AliasTextureTool:
         self.path_entry.delete(0, tk.END)
         self.path_entry.insert(0, path)
         
-        # Identify the pair
-        path_lower = path.lower()
-        if path_lower.endswith('_p.cat'):
-            p_path = path
-            s_path = path.replace('_p.cat', '_s.cat')
-        elif path_lower.endswith('_s.cat'):
-            s_path = path
-            p_path = path.replace('_s.cat', '_p.cat')
-        else:
-            # Handle standard .wld files
-            with open(path, "rb") as f:
-                raw = f.read()
-                self.wld_bytes, self.original_wld_bytes = bytearray(raw), bytearray(raw)
-            self.parse_wld()
-            return
-
-        # Check if the partner file exists
-        if not os.path.exists(s_path) or not os.path.exists(p_path):
-            messagebox.showerror("Error", "Missing file pair!\nBoth _p.cat and _s.cat must be in this folder.")
-            return
-
-        # Load both files
-        with open(p_path, "rb") as f:
+        with open(path, "rb") as f:
             raw = f.read()
             self.wld_bytes, self.original_wld_bytes = bytearray(raw), bytearray(raw)
+
+        path_lower = path.lower()
+        if path_lower.endswith('.all'):
+            self.parse_all_file()
+        elif "_p.cat" in path_lower or "_s.cat" in path_lower:
+            # Handle CAT pairs (need to load _s.cat for names)
+            s_path = path.replace('_p.cat', '_s.cat') if '_p.cat' in path_lower else path
+            if os.path.exists(s_path):
+                with open(s_path, "rb") as f: self.s_bytes = f.read()
+            self.parse_cat_files()
+        else:
+            self.parse_wld()
+
+    def parse_all_file(self):
+        self.listbox.delete(0, tk.END)
+        self.textures = []
         
-        with open(s_path, "rb") as f:
-            self.s_bytes = f.read()
+        # 1. Find the FIRST DDS header to determine where the name table ends
+        all_dds_markers = [m.start() for m in re.finditer(b'DDS ', self.wld_bytes)]
+        if not all_dds_markers:
+            messagebox.showerror("Error", "No DDS textures found in this .all file.")
+            return
             
-        self.parse_cat_files()
+        first_dds_offset = all_dds_markers[0]
+
+        # 2. Extract names only from the header area (before the first DDS)
+        header_area = self.wld_bytes[:first_dds_offset]
+        # This pattern looks for .tex filenames
+        name_pattern = re.compile(b'([a-zA-Z0-9_-]+\\.[tT][eE][xX])')
+        names = [n.decode('ascii', 'ignore') for n in name_pattern.findall(header_area)]
+        
+        print(f"Header ends at {hex(first_dds_offset)}. Found {len(names)} names.")
+
+        # 3. Process each DDS found in the file
+        for i, m_off in enumerate(all_dds_markers):
+            try:
+                # Read standard DDS Header info
+                h = int.from_bytes(self.wld_bytes[m_off+12 : m_off+16], 'little')
+                w = int.from_bytes(self.wld_bytes[m_off+16 : m_off+20], 'little')
+                
+                # Format (FourCC) at offset 84
+                fmt_bytes = self.wld_bytes[m_off+84 : m_off+88]
+                fmt = fmt_bytes.decode('ascii', 'ignore').strip('\x00')
+                if not fmt: fmt = "RGBA"
+
+                # Calculate size: distance to next DDS or end of file
+                if i + 1 < len(all_dds_markers):
+                    size = all_dds_markers[i+1] - m_off
+                else:
+                    size = len(self.wld_bytes) - m_off
+                
+                # Match name from the list we scanned
+                # We use the index to match the name to the texture
+                tex_name = names[i] if i < len(names) else f"unnamed_{i:02d}.tex"
+
+                self.textures.append({
+                    "offset": m_off,
+                    "size": size,
+                    "name": tex_name,
+                    "res": f"{w}x{h}",
+                    "fmt": fmt,
+                    "mips": int.from_bytes(self.wld_bytes[m_off+28:m_off+32], 'little'),
+                    "alpha": "No" if "1" in fmt else "Yes",
+                    "modified": False
+                })
+                
+                self.listbox.insert(tk.END, f"{i:02d} | {tex_name} | {fmt} | {w}x{h}")
+            except Exception as e:
+                print(f"Error parsing DDS at {hex(m_off)}: {e}")
 
     def parse_cat_files(self):
         self.listbox.delete(0, tk.END)
