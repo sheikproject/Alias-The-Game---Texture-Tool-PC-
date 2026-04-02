@@ -6,9 +6,10 @@ A python tool to extract or modified the textures inside the .wld files in the P
 
 Made with the help of Google Gemini.
 
-# Supported Files (At the moment)
+# Supported Files
 - .wld
 - _p.cat (the _s.cat store the name and information for each texture)
+- .all (with the XPR0 header)
 
 # Supported Versions
 - PC
