@@ -23,7 +23,7 @@ class AliasTextureTool:
         # --- UI LAYOUT ---
         frame_top = tk.Frame(root)
         frame_top.pack(pady=10, fill=tk.X)
-        tk.Label(frame_top, text=".wld File:").pack(side=tk.LEFT, padx=5)
+        tk.Label(frame_top, text="File:").pack(side=tk.LEFT, padx=5)
         self.path_entry = tk.Entry(frame_top, width=80)
         self.path_entry.pack(side=tk.LEFT, padx=5)
         tk.Button(frame_top, text="Browse", command=self.load_wld_btn).pack(side=tk.LEFT)
