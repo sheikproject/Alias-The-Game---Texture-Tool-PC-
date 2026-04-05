@@ -13,7 +13,6 @@ Made with the help of Google Gemini.
 
 # Supported Versions
 - PC
-- XBOX
 
 # Instructions
 <img width="628" height="38" alt="image" src="https://github.com/user-attachments/assets/5030d9c6-7f8f-433a-add6-939bcaa50fce" />
